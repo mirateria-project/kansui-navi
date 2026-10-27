@@ -1,0 +1,185 @@
+# 八重瀬町・冠水リスクナビ：気象庁の雨（ナウキャスト）と浸水キキクルを10分ごとに取りに行き、data/rain.json に保存します。
+# 浸水想定区域（ハザードマップ）の網掛け data/hazard.png も、まだ無ければ1回だけ作ります。
+name: rain-update
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: rain-update
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet pillow
+      - name: Fetch JMA data
+        run: |
+          mkdir -p data
+          cat > /tmp/rain.py <<'PY'
+          import json, io, math, base64, os, sys, datetime, urllib.request, urllib.error
+          from PIL import Image
+          W, S, E, N = 127.66, 26.08, 127.80, 26.22   # 八重瀬町とその周り
+          UA = {"User-Agent": "yaese-kansui-navi (GitHub Actions)"}
+          JMA = "https://www.jma.go.jp/bosai/jmatile/data/"
+
+          def get(u, t=30):
+              req = urllib.request.Request(u, headers=UA)
+              with urllib.request.urlopen(req, timeout=t) as f:
+                  return f.read()
+
+          def px(lon, lat, z):
+              n = 256 * 2 ** z
+              s = math.sin(math.radians(lat))
+              return (lon + 180) / 360 * n, (0.5 - math.log((1 + s) / (1 - s)) / (4 * math.pi)) * n
+
+          def unpx(x, y, z):
+              n = 256 * 2 ** z
+              lon = x / n * 360 - 180
+              lat = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
+              return lat, lon
+
+          def area(z):
+              x0, y0 = px(W, N, z); x1, y1 = px(E, S, z)
+              X0, Y0, X1, Y1 = int(x0), int(y0), int(x1) + 1, int(y1) + 1
+              return X0, Y0, X1 - X0, Y1 - Y0
+
+          def mosaic(urlf, z):
+              X0, Y0, w, h = area(z)
+              img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+              got = 0
+              for tx in range(X0 // 256, (X0 + w - 1) // 256 + 1):
+                  for ty in range(Y0 // 256, (Y0 + h - 1) // 256 + 1):
+                      try:
+                          t = Image.open(io.BytesIO(get(urlf(z, tx, ty)))).convert("RGBA")
+                      except urllib.error.HTTPError as e:
+                          if e.code == 404:
+                              got += 1
+                              continue
+                          raise
+                      img.paste(t, (tx * 256 - X0, ty * 256 - Y0))
+                      got += 1
+              if not got:
+                  raise RuntimeError("no tiles")
+              return img
+
+          def classify(img, pal):
+              out = bytearray()
+              raw = img.tobytes()
+              for j in range(0, len(raw), 4):
+                  r, g, b, a = raw[j], raw[j + 1], raw[j + 2], raw[j + 3]
+                  if a < 40:
+                      out.append(0); continue
+                  best, bd = 0, 1e9
+                  for (pr, pg, pb), code in pal:
+                      d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2
+                      if d < bd:
+                          bd, best = d, code
+                  out.append(best)
+              return out
+
+          RAIN = [((242, 242, 255), 1), ((160, 210, 255), 2), ((33, 140, 255), 3), ((0, 65, 255), 4),
+                  ((250, 245, 0), 5), ((255, 153, 0), 6), ((255, 40, 0), 7), ((180, 0, 104), 8)]
+          KIKI = [((255, 255, 255), 0), ((242, 231, 0), 1), ((255, 40, 0), 2), ((170, 0, 170), 3), ((12, 0, 12), 4)]
+          Z = 10
+          X0, Y0, w, h = area(Z)
+          out = {"checked": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                 "z": Z, "x0": X0, "y0": Y0, "w": w, "h": h, "rain": None, "rain30": None, "kiki": None,
+                 "nowc": None, "kikiT": None, "error": []}
+          b64 = lambda b: base64.b64encode(bytes(b)).decode()
+          # 1) 雨（高解像度降水ナウキャスト）：実況と30分先までの予報
+          try:
+              n1 = json.loads(get(JMA + "nowc/targetTimes_N1.json"))
+              obs = sorted([x for x in n1 if x.get("basetime") == x.get("validtime") and "hrpns" in (x.get("elements") or ["hrpns"])],
+                           key=lambda x: x["basetime"])[-1]
+              b = obs["basetime"]
+              out["nowc"] = b
+              cur = classify(mosaic(lambda z, x, y: f"{JMA}nowc/{b}/none/{b}/surf/hrpns/{z}/{x}/{y}.png", Z), RAIN)
+              out["rain"] = b64(cur)
+              try:
+                  n2 = json.loads(get(JMA + "nowc/targetTimes_N2.json"))
+                  bt = datetime.datetime.strptime(b, "%Y%m%d%H%M%S")
+                  fc = [x for x in n2 if x.get("basetime") == b and "hrpns" in (x.get("elements") or ["hrpns"])
+                        and 0 < (datetime.datetime.strptime(x["validtime"], "%Y%m%d%H%M%S") - bt).total_seconds() <= 1800]
+                  mx = bytearray(cur)
+                  for x in fc:
+                      v = x["validtime"]
+                      c = classify(mosaic(lambda z, xx, yy: f"{JMA}nowc/{b}/none/{v}/surf/hrpns/{z}/{xx}/{yy}.png", Z), RAIN)
+                      for i in range(len(mx)):
+                          if c[i] > mx[i]: mx[i] = c[i]
+                  out["rain30"] = b64(mx)
+              except Exception as e:
+                  out["error"].append("forecast: %s" % e)
+          except Exception as e:
+              out["error"].append("nowcast: %s" % e)
+          # 2) 浸水キキクル
+          try:
+              rt = json.loads(get(JMA + "risk/targetTimes.json"))
+              c = [x for x in rt if "inund" in (x.get("elements") or [])]
+              cc = [x for x in c if x["basetime"] == x["validtime"]] or c
+              k = sorted(cc, key=lambda x: (x["basetime"], x["validtime"]))[-1]
+              kb, kv = k["basetime"], k["validtime"]
+              out["kikiT"] = {"b": kb, "v": kv}
+              out["kiki"] = b64(classify(mosaic(lambda z, x, y: f"{JMA}risk/{kb}/none/{kv}/surf/inund/{z}/{x}/{y}.png", Z), KIKI))
+          except Exception as e:
+              out["error"].append("kikikuru: %s" % e)
+          json.dump(out, open("data/rain.json", "w"), separators=(",", ":"))
+          print("rain:", out["nowc"], "kiki:", out["kikiT"], "errors:", out["error"])
+
+          # 3) 浸水想定区域の網掛け（無いときだけ作る）
+          need = True
+          try:
+              need = json.load(open("data/hazard.json")).get("error", True)
+          except Exception:
+              pass
+          if need:
+              HZ = 14
+              HX0, HY0, hw, hh = area(HZ)
+              mask = Image.new("L", (hw, hh), 0)
+              ok = 0
+              for layer in ["01_flood_l2_shinsuishin_data", "02_naisui_data", "03_hightide_l2_shinsuishin_data"]:
+                  try:
+                      m = mosaic(lambda z, x, y: f"https://disaportaldata.gsi.go.jp/raster/{layer}/{z}/{x}/{y}.png", HZ)
+                      a = m.getchannel("A").point(lambda v: 255 if v > 20 else 0)
+                      mask = Image.composite(a, mask, a)
+                      ok += 1
+                      print("hazard layer ok:", layer)
+                  except Exception as e:
+                      print("hazard layer skip:", layer, e)
+              info = {"error": True}
+              if ok:
+                  png = Image.new("RGBA", (hw, hh), (0, 0, 0, 0))
+                  pm, mp = png.load(), mask.load()
+                  for y in range(hh):
+                      for x in range(hw):
+                          if mp[x, y]:
+                              pm[x, y] = (214, 40, 40, 190) if (x + y) % 9 < 2 else (214, 40, 40, 26)
+                  png.save("data/hazard.png", optimize=True)
+                  st = 4
+                  gw, gh = (hw + st - 1) // st, (hh + st - 1) // st
+                  bits = bytearray((gw * gh + 7) // 8)
+                  for gy in range(gh):
+                      for gx in range(gw):
+                          box = mask.crop((gx * st, gy * st, min(hw, gx * st + st), min(hh, gy * st + st)))
+                          if box.getbbox():
+                              i = gy * gw + gx
+                              bits[i >> 3] |= 1 << (i & 7)
+                  s_, w_ = unpx(HX0, HY0 + hh, HZ); n_, e_ = unpx(HX0 + hw, HY0, HZ)
+                  info = {"error": False, "made": out["checked"], "z": HZ, "x0": HX0, "y0": HY0, "step": st,
+                          "gw": gw, "gh": gh, "bounds": [s_, w_, n_, e_], "mask": b64(bits)}
+              json.dump(info, open("data/hazard.json", "w"), separators=(",", ":"))
+          PY
+          python3 /tmp/rain.py
+      - name: Save
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || (git commit -m "rain update" && git pull --rebase --autostash && git push)
