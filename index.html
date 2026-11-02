@@ -728,7 +728,7 @@ label.ck input{width:22px;height:22px;accent-color:var(--accent)}
 
 /* 地図 */
 .mapbox{position:relative;border-radius:16px;overflow:hidden;background:var(--soft)}
-#map{height:62vh;min-height:340px;max-height:640px;width:100%}
+#map{height:62vh;min-height:340px;max-height:640px;width:100%;touch-action:auto}
 .mapctl{position:absolute;right:calc(10px + env(safe-area-inset-right,0px));bottom:26px;z-index:800;display:flex;flex-direction:column;gap:8px}
 .mapctl button{width:48px;height:48px;min-height:48px;padding:0;border-radius:12px;font-size:20px;background:var(--card);box-shadow:0 2px 6px #0004}
 .mapctl button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
@@ -816,6 +816,42 @@ pre.code{white-space:pre;overflow:auto;max-height:200px;background:var(--soft);b
 .mdl>div{background:var(--card);color:var(--ink);max-width:560px;margin:20px auto;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .mdl img{width:100%;height:auto;border-radius:10px;display:block}
 .wn{background:var(--warnbg);color:var(--ink);border-radius:10px;padding:8px 10px;font-size:14px}
+/* v1.1 地図の上のボタン列・ロック・全画面（台風アプリと同じ） */
+.mapin{position:relative}
+.zc{position:absolute;left:8px;right:8px;top:8px;z-index:820;display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:flex-end;gap:6px;pointer-events:none}
+.zc button{pointer-events:auto;flex:none;width:42px;height:42px;min-height:42px;padding:0;border-radius:12px;font-size:20px;background:var(--card);box-shadow:0 2px 6px #0004}
+.zc button.zz{font-size:24px;font-weight:900}
+@media (max-width:360px){.zc{gap:4px}.zc button{width:38px;height:38px;min-height:38px;font-size:18px}}
+#zlk.sel{background:#ffd60a;border-color:#e0b400;color:#14203a}
+#zmax.on{background:var(--accent);color:var(--on-accent)}
+.lkhint{position:absolute;left:50%;bottom:calc(var(--pbh,0px) + 30px);transform:translateX(-50%);z-index:830;background:#14203aee;color:#fff;font-weight:800;font-size:14px;padding:7px 14px;border-radius:999px;pointer-events:none;white-space:nowrap}
+.lkhint[hidden]{display:none}
+#pickbar{top:58px}
+#mapmsg{bottom:calc(var(--pbh,0px) + 44px)}
+#mtopS:empty{display:none}
+#mpanel{position:absolute;left:0;right:0;bottom:0;z-index:840;background:color-mix(in srgb,var(--card) 80%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:18px 18px 0 0;padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px));max-height:42%;overflow-y:auto;-webkit-overflow-scrolling:touch;box-shadow:0 -4px 16px #0003;display:flex;flex-direction:column;gap:6px}
+#mpanel[hidden]{display:none!important}
+#mphd{align-self:center;min-height:34px;border:0;background:#14203a;color:#fff;border-radius:999px;padding:0 18px;font-size:14px}
+#mpanel.col #mpbody{display:none}
+#mpbody{display:flex;flex-direction:column;gap:6px}
+#mpbody #risk{padding:6px 10px;gap:8px}
+#mpbody #risk .ic{width:36px;height:36px;font-size:20px;border-radius:10px}
+#mpbody #risk .lv{font-size:17px}
+#mpbody #risk .dt{font-size:12px;margin:0}
+#mpbody .chip{min-height:36px;font-size:13px;padding:0 10px}
+#mpbody .legend{font-size:11.5px;color:var(--ink)}
+body.mapmax{overflow:hidden}
+.mapmax .mapbox{position:fixed;inset:0;z-index:950;border-radius:0;display:flex;flex-direction:column;background:var(--bg);padding-top:env(safe-area-inset-top,0px)}
+.mapmax #mtopS{flex:none;display:flex;flex-direction:column;gap:6px;padding:4px max(8px,env(safe-area-inset-right,0px)) 0 max(8px,env(safe-area-inset-left,0px))}
+.mapmax #mtopS #nav{position:static;margin-top:4px}
+.mapmax #mtopS #mira-ban{margin:12px 10px 4px 0}
+.mapmax #mira-mq{height:54px}
+.mapmax #mira-trk{flex-direction:row;gap:10px}
+.mapmax #mira-trk img{height:38px}
+.mapmax .mapin{flex:1;min-height:0}
+.mapmax #map{height:100%!important;min-height:0!important;max-height:none!important}
+.mapmax .leaflet-bottom{bottom:var(--pbh,0px)}
+.mapmax .zc{left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px))}
 </style>
 <style>
 #mira-ban{position:relative;margin:10px 12px 12px 2px;box-sizing:border-box;z-index:5}
@@ -861,12 +897,21 @@ pre.code{white-space:pre;overflow:auto;max-height:200px;background:var(--soft);b
   <div id="mira-ban"><div id="mira-mq" role="button" aria-label="MIRATERIA"><div id="mira-trk"></div></div><button id="mira-bx" type="button" aria-label="close">×</button></div>
 
   <div class="mapbox">
+    <div id="mtopS"></div>
+    <div class="mapin">
     <div id="map" role="application" aria-label="八重瀬町の地図"></div>
-    <div id="pickbar" hidden><span id="pickTx"></span><button id="pickX" type="button" data-t="cancel">やめる</button></div>
-    <div id="mapmsg" hidden></div>
-    <div class="mapctl">
+    <div class="zc">
+      <button id="zin" class="zz" type="button" aria-label="zoom in">＋</button>
+      <button id="zout" class="zz" type="button" aria-label="zoom out">－</button>
       <button id="bMe" type="button" aria-label="現在地">📍</button>
       <button id="bAll" type="button" aria-label="全体">🗺</button>
+      <button id="zlk" type="button">🔒</button>
+      <button id="zmax" type="button"></button>
+    </div>
+    <div id="pickbar" hidden><span id="pickTx"></span><button id="pickX" type="button" data-t="cancel">やめる</button></div>
+    <div id="mapmsg" hidden></div>
+    <div class="lkhint" id="lkhint" hidden></div>
+    <div id="mpanel" hidden><button type="button" id="mphd"></button><div id="mpbody"></div></div>
     </div>
   </div>
   <div class="chips" role="group" aria-label="表示">
@@ -992,7 +1037,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script>
 (function(){
 'use strict';
-const VER='1.0.0',VDATE='2026-10-26';
+const VER='1.2.0',VDATE='2026-11-02';
 const $=id=>document.getElementById(id);
 const LANG=/^ja/i.test(navigator.language||'ja')?'ja':'en';
 const TX={ja:{
@@ -1007,6 +1052,7 @@ const TX={ja:{
  caution:'⚠ 目安です。冠水した道には入らないでください。最後は目で見て判断してください。',hsWarn:'このボタンを押しても自動では追加されません。下の手順を見ながら、自分の手でホーム画面に追加してください。',close:'閉じる',
  hsTx:'<b>iPhone</b>：Safariで開く → 共有ボタン → 「ホーム画面に追加」<br><b>Android</b>：<b>Chromeで開いてね</b> → 右上の︙ → 「アプリをインストール」か「ホーム画面に追加」<br>LINEやインスタから開いたときは、メニューから「Safari（Chrome）で開く」を選んでください。',
  base:'ミラテリア',person:n=>n+'番の人',namePh:'名前',addrPh:'住所（例：東風平123）',off:'今日は休み',posOK:'位置OK',posNo:'位置がまだです',
+ lkOn:'地図を固定する',lkOff:'地図を動かせるようにする',lkHint:'🔒を押すと地図を動かせます',maxOn:'地図を全画面にする',maxOff:'元の大きさに戻す',pOpen:'▲ くわしく',pClose:'▼ たたむ',
  lv:['大雨の心配なし','注意：強い雨','危険：冠水のおそれ','非常に危険'],lvUnk:'雨の情報を取れません',
  dtMax:(mm,nm)=>'最大 '+mm+'mm/h'+(nm?'・'+nm:''),srcJ:'気象庁レーダー',srcO:'気象庁モデル（目安）',srcC:'前回の情報',got:t=>t+' 取得',
  lrTx:(n,N)=>n>=N?'学習ずみ（'+n+'回分の記録）':'学習中 '+n+'/'+N+'回（あと'+(N-n)+'回は職員が順番を決めます）',
@@ -1038,6 +1084,7 @@ const TX={ja:{
  caution:'⚠ This is a guide. Never drive into a flooded road. Always check with your own eyes.',hsWarn:'This button does not add the app automatically. Follow the steps below.',close:'Close',
  hsTx:'<b>iPhone</b>: open in Safari → Share → “Add to Home Screen”<br><b>Android</b>: <b>open in Chrome</b> → ︙ → “Install app” or “Add to Home screen”',
  base:'MIRATERIA',person:n=>'Person '+n,namePh:'Name',addrPh:'Address',off:'Absent today',posOK:'Location set',posNo:'No location yet',
+ lkOn:'Lock the map',lkOff:'Unlock the map',lkHint:'Tap 🔒 to move the map',maxOn:'Full-screen map',maxOff:'Back to normal size',pOpen:'▲ Details',pClose:'▼ Hide',
  lv:['No heavy rain','Caution: heavy rain','Danger: flooding possible','Extreme danger'],lvUnk:'No rain data',
  dtMax:(mm,nm)=>'Max '+mm+' mm/h'+(nm?' · '+nm:''),srcJ:'JMA radar',srcO:'JMA model (estimate)',srcC:'last data',got:t=>'at '+t,
  lrTx:(n,N)=>n>=N?'Learned ('+n+' trips recorded)':'Learning '+n+'/'+N+' trips (staff chooses for '+(N-n)+' more)',
@@ -1073,7 +1120,7 @@ const DEF_SPOTS=[
  {id:'s5',name:'ヌヌマチガマ付近',lat:26.1290,lon:127.7360},{id:'s6',name:'国道507号（饒波川付近）',lat:26.1650,lon:127.7220},
  {id:'s7',name:'国道331号（具志頭〜港川）',lat:26.1180,lon:127.7520},{id:'s8',name:'世名城（竿地川沿い）',lat:26.1407,lon:127.7138}];
 let S=null;try{S=JSON.parse(localStorage.getItem('frn1')||'null')}catch(e){}
-S=Object.assign({base:{addr:BASE_ADDR},people:[],spots:null,layers:{rain:1,haz:1,kiki:0,spot:1},mode:'staff',order:[],learnN:3,trips:[],route:null,voice:1},S||{});
+S=Object.assign({mlock:1,mmax:0,pcol:0,base:{addr:BASE_ADDR},people:[],spots:null,layers:{rain:1,haz:1,kiki:0,spot:1},mode:'staff',order:[],learnN:3,trips:[],route:null,voice:1},S||{});
 for(let i=S.people.length;i<5;i++)S.people.push({id:'p'+(i+1),name:'',addr:'',off:false});
 if(!S.spots)S.spots=DEF_SPOTS.map(x=>Object.assign({},x));
 let saveT=0;
@@ -1142,7 +1189,7 @@ let map=null,mapOK=false,L_rain=null,L_haz=null,L_kiki=null,G_spot=null,G_route=
 function mapMsg(s){const m=$('mapmsg');if(!s){m.hidden=true;return}m.textContent=s;m.hidden=false}
 function initMap(){
  if(!window.L){mapMsg(t('mapPrev'));return}
- map=L.map('map',{minZoom:11,maxZoom:18,zoomControl:true}).setView([26.150,127.725],13);
+ map=L.map('map',{minZoom:11,maxZoom:18,zoomControl:false}).setView([26.150,127.725],13);
  map.createPane('haz').style.zIndex=310;map.createPane('kiki').style.zIndex=320;map.createPane('rain').style.zIndex=330;
  ['haz','kiki','rain'].forEach(p=>map.getPane(p).style.pointerEvents='none');
  const base=L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',{maxZoom:18,attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a> | 気象庁 | <a href="https://disaportal.gsi.go.jp/" target="_blank" rel="noopener">ハザードマップポータル</a> | © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OSM</a>'}).addTo(map);
@@ -1200,6 +1247,38 @@ function toggleLayer(k,lay){S.layers[k]=S.layers[k]?0:1;save();syncChips();if(!m
 $('lyRain').onclick=()=>toggleLayer('rain',()=>L_rain);$('lyHaz').onclick=()=>toggleLayer('haz',()=>L_haz);
 $('lyKiki').onclick=()=>toggleLayer('kiki',()=>L_kiki);$('lySpot').onclick=()=>{S.layers.spot=S.layers.spot?0:1;save();syncChips();drawSpots()};
 $('bAll').onclick=()=>{follow=false;fitAll()};
+$('zin').onclick=()=>{if(map)map.zoomIn()};$('zout').onclick=()=>{if(map)map.zoomOut()};
+
+/* ---------- 地図のロック（触っても地図が動かない＝画面をスクロールしやすい） ---------- */
+const locked=()=>S.mlock!==0;
+const MH=['dragging','touchZoom','doubleClickZoom','scrollWheelZoom','boxZoom','keyboard'];
+function lockUI(){const b=$('zlk'),k=locked();b.textContent=k?'🔒':'🔓';b.classList.toggle('sel',!k);b.title=b.ariaLabel=k?t('lkOff'):t('lkOn');
+ if(map)MH.forEach(h=>{if(map[h])k?map[h].disable():map[h].enable()})}
+function lkHint(){const h=$('lkhint');h.textContent=t('lkHint');h.hidden=false;clearTimeout(lkHint.t);lkHint.t=setTimeout(()=>h.hidden=true,1800)}
+$('zlk').onclick=()=>{S.mlock=locked()?0:1;save();lockUI();if(!locked())$('lkhint').hidden=true};
+{const tp=new Set();const mp=$('map');
+ mp.addEventListener('pointerdown',e=>{if(!locked()||e.pointerType==='mouse'||pick)return;tp.add(e.pointerId);
+  // 全画面のときは触ったらすぐ、ふつうの画面では2本指で触ったときだけ知らせる（スクロールのじゃまをしない）
+  if(document.body.classList.contains('mapmax')||tp.size>=2)lkHint()});
+ ['pointerup','pointercancel','pointerleave'].forEach(n=>mp.addEventListener(n,e=>tp.delete(e.pointerId)));}
+
+/* ---------- 全画面の地図（下に半透明の帯：危険度・表示の切り替え） ---------- */
+const PH={};
+const ZOUT='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+      ZIN='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+function mv(el,box,on){if(!el)return;const k=el.id||el.className;if(on){if(!PH[k])PH[k]=document.createComment(k);if(!PH[k].parentNode)el.parentNode.insertBefore(PH[k],el);box.appendChild(el)}else if(PH[k]&&PH[k].parentNode){PH[k].parentNode.insertBefore(el,PH[k]);PH[k].remove()}}
+function updPB(){const p=$('mpanel'),mi=document.querySelector('.mapin');let h=0;if(document.body.classList.contains('mapmax')&&!p.hidden)h=p.offsetHeight;mi.style.setProperty('--pbh',h+'px')}
+function panelUI(){$('mpanel').classList.toggle('col',!!S.pcol);$('mphd').textContent=S.pcol?t('pOpen'):t('pClose');updPB()}
+function refit(){requestAnimationFrame(()=>{updPB();if(map){map.invalidateSize({pan:false});if(!follow&&!nav)fitAll()}dispatchEvent(new Event('resize'))})}
+function setMax(on){S.mmax=on?1:0;save();document.body.classList.toggle('mapmax',!!on);
+ mv($('nav'),$('mtopS'),on);mv($('mira-ban'),$('mtopS'),on);
+ mv($('risk'),$('mpbody'),on);mv(document.querySelector('.chips'),$('mpbody'),on);mv(document.querySelector('.legend'),$('mpbody'),on);
+ $('mpanel').hidden=!on;const b=$('zmax');b.innerHTML=on?ZIN:ZOUT;b.classList.toggle('on',!!on);b.title=b.ariaLabel=on?t('maxOff'):t('maxOn');
+ panelUI();refit();setTimeout(refit,250)}
+$('zmax').onclick=()=>setMax(!S.mmax);
+$('mphd').onclick=()=>{S.pcol=S.pcol?0:1;save();panelUI()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.mmax)setMax(0)});
+try{new ResizeObserver(updPB).observe($('mpanel'))}catch(e){}
 
 /* ---------- いまの危険度 ---------- */
 function renderRisk(){
@@ -1420,7 +1499,7 @@ $('hsc').onclick=()=>{$('hsm').hidden=true};$('hsm').onclick=e=>{if(e.target.id=
 
 /* ---------- はじめに ---------- */
 syncChips();renderBase();renderPeople();renderMode();renderSpots();renderPlan();
-initMap();drawPeople();drawRoute();
+initMap();lockUI();setMax(!!S.mmax);drawPeople();drawRoute();
 (async()=>{await loadHaz();setHazLayer();
  if(!hasPos(S.base)&&S.base.addr){const g=await geocode(S.base.addr);if(g){Object.assign(S.base,{lat:g.lat,lon:g.lon});save();renderBase();drawPeople()}}
  await refreshRain();if(!S.route)fitAll()})();
@@ -1430,5 +1509,4 @@ addEventListener('online',refreshRain);
 try{if('serviceWorker' in navigator&&location.protocol==='https:'&&!/claude|anthropic|usercontent/.test(location.hostname))addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}catch(e){}
 })();
 </script>
-
 </body></html>
